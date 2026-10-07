@@ -1,0 +1,7 @@
+android-lite/.tools/
+android-lite/.build/
+android-studio/.gradle/
+android-studio/build/
+android-studio/app/build/
+android-studio/local.properties
+*.p12
