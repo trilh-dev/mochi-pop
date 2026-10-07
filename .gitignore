@@ -5,3 +5,6 @@ android-studio/build/
 android-studio/app/build/
 android-studio/local.properties
 *.p12
+credentials/
+*.jks
+*.aab

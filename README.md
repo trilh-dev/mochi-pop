@@ -41,5 +41,13 @@ If a game build ever depends on a new wrapper feature, raise `WRAPPER_LEVEL` in 
 `build.mjs` together. Older apps will then skip that update instead of breaking.
 
 ## Build for the Play Store
-Open `android-studio/` in Android Studio, then use Build › Generate Signed Bundle. The app's assets come from `../www`, so run `node build.mjs` first.
-This project was written by hand and has not been built in this environment (it has no Android SDK).
+The Play build (`android-studio/`, package `com.vanlangtechnologies.mochipop`) adds AdMob (rewarded + interstitial, UMP consent)
+and Play Billing (`remove_ads`, `coins_500`, `coins_1500`, `coins_5000`). Its `MainActivity` lives in
+`android-studio/app/src/main/java` and is a copy of the android-lite one plus the monetization bridge (WRAPPER_LEVEL 2);
+keep the shared parts in sync. The game feature-detects the bridge, so ads and the shop only appear in this build.
+```
+node build.mjs
+cd android-studio && ./gradlew bundleRelease   # -> app/build/outputs/bundle/release/app-release.aab
+```
+Release signing reads `credentials/keystore.properties` (git-ignored; upload key `credentials/upload.jks`, Play App Signing is on).
+Debug builds use Google's AdMob test ids.

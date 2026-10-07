@@ -40,6 +40,17 @@ const BOOST_COST = { hammer: 40, bomb: 80, swap: 30 };
 const CONTINUE_COST = 100;
 const DAILY = [30, 40, 50, 60, 80, 100, 200];
 const GAME_VERSION = __VERSION__;
+const NATIVE = window.Android || {};
+const HAS_ADS = typeof NATIVE.showRewarded === 'function';
+const HAS_IAP = typeof NATIVE.buy === 'function';
+const PACKS = { coins_500: 500, coins_1500: 1500, coins_5000: 5000 };
+const AD_COINS = 40, AD_COINS_PER_DAY = 5;
+let products = [];
+try { if (HAS_IAP) products = JSON.parse(NATIVE.products() || '[]'); } catch (e) {}
+const price = id => (products.find(p => p.id === id) || {}).price;
+const noAds = () => S.noAds || (HAS_IAP && NATIVE.noAds());
+let shopOpen = false, adShowing = false, lastRewarded = 0;
+const adCbs = {};
 
 // ---------- shapes ----------
 const BASE = [
@@ -84,6 +95,7 @@ const DEFAULT = () => ({
   settings: { sound: true, music: true, vib: true },
   daily: { last: '', streak: 0 },
   missions: null, tutorialDone: false, run: null, games: 0, capsulesOpened: 0,
+  noAds: false, tokens: [], adCoins: { day: '', n: 0 }, gamesSinceAd: 0, lastAd: 0,
 });
 let S = DEFAULT();
 try { const raw = localStorage.getItem(SAVE_KEY); if (raw) S = Object.assign(DEFAULT(), JSON.parse(raw)); } catch (e) {}
@@ -749,11 +761,12 @@ function show(id) {
   if (id === 'home') refreshHome();
 }
 function modal(html, mount) {
+  shopOpen = false;
   $('#card').innerHTML = html; $('#modal').classList.remove('hidden');
   $$('#card [data-close]').forEach(b => b.addEventListener('click', () => { SFX.tap(); closeModal(); }));
   if (mount) mount($('#card'));
 }
-function closeModal() { $('#modal').classList.add('hidden'); if (screen === 'home') refreshHome(); }
+function closeModal() { shopOpen = false; $('#modal').classList.add('hidden'); if (screen === 'home') refreshHome(); }
 function refreshHome() {
   $('#coinsHome').textContent = fmt(S.coins);
   $('#bestHome').textContent = fmt(S.best);
@@ -763,6 +776,7 @@ function refreshHome() {
   ensureMissions();
   $('#missDot').classList.toggle('hidden', !S.missions.list.some(m => m.prog >= m.target && !m.claimed));
   $('#capDot').classList.toggle('hidden', S.coins < CAPSULE_COST || S.skins.length >= SKINS.length);
+  $('#btnShop').classList.toggle('hidden', !HAS_ADS && !HAS_IAP);
 }
 const xpNeed = () => 100 + (S.level - 1) * 60;
 
@@ -787,30 +801,43 @@ function gameOver() {
   setTimeout(() => {
     const newBest = G.score > S.best;
     const canContinue = !G.continued && S.coins + G.coinsRun >= CONTINUE_COST;
+    const adReady = rewardedReady(), earned = G.coinsRun + Math.floor(G.score / 250);
     modal(`<h2>Out of room!</h2>
       <div class="bigscore">${fmt(G.score)}</div>
       ${newBest ? '<div class="newbest">👑 NEW BEST!</div>' : `<p>Best ${fmt(S.best)}</p>`}
-      <div class="reward"><i class="coin lg"></i> +${fmt(G.coinsRun + Math.floor(G.score / 250))}</div>
+      <div class="reward"><i class="coin lg"></i> +<span id="mEarned">${fmt(earned)}</span></div>
+      ${!G.continued && adReady ? `<button class="btn green" id="mContAd">🎬 Watch a video &amp; continue</button>` : ''}
       ${!G.continued ? `<button class="btn gold" id="mCont" ${canContinue ? '' : 'disabled'}>💥 Clear space &amp; continue · ${CONTINUE_COST}</button>` : ''}
+      ${adReady && earned > 0 ? `<button class="btn blue" id="mDouble">🎬 Double coins</button>` : ''}
       <button class="btn green" id="mAgain">Play again</button>
       <button class="btn ghost" id="mHome">Home</button>`, card => {
-      card.querySelector('#mAgain').onclick = () => { finishRun(); closeModal(); startGame(); };
-      card.querySelector('#mHome').onclick = () => { finishRun(); closeModal(); show('home'); };
+      card.querySelector('#mAgain').onclick = () => { finishRun(); closeModal(); maybeInterstitial(startGame); };
+      card.querySelector('#mHome').onclick = () => { finishRun(); closeModal(); show('home'); maybeInterstitial(() => {}); };
       const c = card.querySelector('#mCont');
       if (c) c.onclick = () => {
         if (!canContinue) return;
         if (G.coinsRun >= CONTINUE_COST) G.coinsRun -= CONTINUE_COST; else { S.coins -= CONTINUE_COST - G.coinsRun; G.coinsRun = 0; }
-        G.over = false; G.continued = true; closeModal();
-        const cells = []; for (let y = 2; y < 6; y++) for (let x = 0; x < N; x++) cells.push([x, y]);
-        const keep = G.score; smash(cells, true); G.score = keep; G.pieces = [0, 1, 2].map(() => makePiece(pickShape(0)));
-        G.pieces.forEach(p => p.anim = -0.2); updateHud(); saveRun();
+        continueRun();
       };
+      const ca = card.querySelector('#mContAd');
+      if (ca) ca.onclick = () => showAd('continue', ok => { if (ok && G.over && !G.continued) continueRun(); else if (!ok) toast('Watch the whole video to continue'); });
+      const d = card.querySelector('#mDouble');
+      if (d) d.onclick = () => showAd('double', ok => {
+        if (!ok) { toast('Watch the whole video to double'); return; }
+        G.doubled = true; d.remove(); card.querySelector('#mEarned').textContent = fmt(earned * 2); SFX.coin(); confetti(40);
+      });
     });
     if (newBest) { confetti(100); SFX.win(); }
   }, 650);
 }
+function continueRun() {
+  G.over = false; G.continued = true; closeModal();
+  const cells = []; for (let y = 2; y < 6; y++) for (let x = 0; x < N; x++) cells.push([x, y]);
+  const keep = G.score; smash(cells, true); G.score = keep; G.pieces = [0, 1, 2].map(() => makePiece(pickShape(0)));
+  G.pieces.forEach(p => p.anim = -0.2); updateHud(); saveRun();
+}
 function finishRun() {
-  const earned = G.coinsRun + Math.floor(G.score / 250);
+  const earned = (G.coinsRun + Math.floor(G.score / 250)) * (G.doubled ? 2 : 1);
   S.coins += earned;
   if (G.score > S.best) S.best = G.score;
   missionMax('score', G.score);
@@ -859,7 +886,9 @@ function openCollection() {
     <button class="btn gold" id="mRoll" ${S.coins >= CAPSULE_COST ? '' : 'disabled'}>${all ? 'Roll for coins' : 'Open capsule'} · ${CAPSULE_COST} <i class="coin"></i></button>
     <div class="grid">${SKINS.map((k, i) => `<div class="skin ${S.skins.includes(k.id) ? '' : 'locked'} ${S.skin === k.id ? 'sel' : ''}" data-id="${k.id}"><canvas></canvas>${S.skins.includes(k.id) ? k.name : '???'}<em>${k.rarity}</em></div>`).join('')}</div>
     <p style="margin-top:10px">You have <b>${fmt(S.coins)}</b> coins</p>
+    ${S.coins < CAPSULE_COST && (HAS_ADS || HAS_IAP) ? '<button class="btn blue" id="mGetCoins">🛒 Get coins</button>' : ''}
     <button class="btn ghost" data-close>Close</button>`, card => {
+    const gc = card.querySelector('#mGetCoins'); if (gc) gc.onclick = openShop;
     card.querySelectorAll('.skin').forEach((el, i) => {
       skinThumb(el.dataset.id, el.querySelector('canvas'), i % COLORS.length);
       el.onclick = () => { if (!S.skins.includes(el.dataset.id)) { toast('Open capsules to unlock!'); return; } S.skin = el.dataset.id; save(); SFX.tap(); openCollection(); };
@@ -892,7 +921,11 @@ function openSettings() {
   modal(`<h2>Settings</h2>${row('sound', '🔊 Sound')}${row('music', '🎵 Music')}${row('vib', '📳 Vibration')}
     <p style="margin-top:12px">Games played: ${S.games} · Capsules: ${S.capsulesOpened}</p>
     <p style="font-size:13px">Version ${GAME_VERSION}</p>
+    ${HAS_IAP ? '<button class="btn blue" id="mRestore">Restore purchases</button>' : ''}
+    ${HAS_ADS && NATIVE.privacyOptionsRequired() ? '<button class="btn blue" id="mPrivacy">Privacy options</button>' : ''}
     <button class="btn ghost" data-close>Close</button>`, card => {
+    const r = card.querySelector('#mRestore'); if (r) r.onclick = () => { NATIVE.restorePurchases(); toast('Checking your purchases…'); };
+    const pv = card.querySelector('#mPrivacy'); if (pv) pv.onclick = () => NATIVE.showPrivacyOptions();
     card.querySelectorAll('.sw').forEach(b => b.onclick = () => { S.settings[b.dataset.k] = !S.settings[b.dataset.k]; b.classList.toggle('on'); save(); SFX.tap(); });
   });
 }
@@ -911,6 +944,9 @@ $('#btnPlay').addEventListener('click', startGame);
 $('#btnMissions').addEventListener('click', () => { initAudio(); openMissions(); });
 $('#btnCollection').addEventListener('click', () => { initAudio(); openCollection(); });
 $('#btnSettings').addEventListener('click', () => { initAudio(); openSettings(); });
+$('#btnShop').addEventListener('click', () => { initAudio(); openShop(); });
+$('#pillHome').addEventListener('click', () => { if (HAS_ADS || HAS_IAP) { initAudio(); openShop(); } });
+$('#pillHud').addEventListener('click', () => { if ((HAS_ADS || HAS_IAP) && G && !G.over) { initAudio(); setTool(null); openShop(); } });
 $('#btnPause').addEventListener('click', openPause);
 document.addEventListener('visibilitychange', () => { if (document.hidden) { saveRun(); if (AC) AC.suspend(); } else if (AC) AC.resume(); });
 document.addEventListener('contextmenu', e => e.preventDefault());
@@ -934,11 +970,77 @@ function applyOta() {
 window.__otaReady = v => { otaPending = true; toast('New update ready! ✨'); setTimeout(applyOta, 1200); };
 setInterval(applyOta, 2000);
 
+// ---------- ads & purchases (needs Android wrapper level 2; hidden everywhere else) ----------
+function rewardedReady() { return HAS_ADS && NATIVE.rewardedReady(); }
+function showAd(tag, cb) {
+  if (!HAS_ADS || adShowing) return cb(false);
+  adShowing = true; adCbs[tag] = cb;
+  if (AC) AC.suspend();
+  if (tag === 'interstitial') NATIVE.showInterstitial(); else NATIVE.showRewarded(tag);
+}
+window.__adDone = (tag, ok) => {
+  adShowing = false;
+  if (AC && !document.hidden) AC.resume();
+  if (tag !== 'interstitial' && ok) lastRewarded = Date.now();
+  const cb = adCbs[tag]; delete adCbs[tag];
+  if (cb) cb(ok);
+};
+// Between games only: never in the first 3 games, at most every 3rd game and 3 minutes apart,
+// and not right after the player chose to watch a reward video.
+function maybeInterstitial(next) {
+  S.gamesSinceAd++; save();
+  const now = Date.now();
+  if (!HAS_ADS || noAds() || S.games < 3 || S.gamesSinceAd < 3 || now - S.lastAd < 180000 || now - lastRewarded < 90000) return next();
+  showAd('interstitial', shown => { if (shown) { S.gamesSinceAd = 0; S.lastAd = Date.now(); save(); } next(); });
+}
+const adCoinsLeft = () => S.adCoins.day === today() ? Math.max(0, AD_COINS_PER_DAY - S.adCoins.n) : AD_COINS_PER_DAY;
+function openShop() {
+  SFX.tap();
+  const row = (id, icon, title, sub) => `<div class="mission"><div class="ic">${icon}</div><div class="tx">${title}<br><small>${sub}</small></div>
+    <button class="btn sm gold" data-buy="${id}" ${price(id) ? '' : 'disabled'}>${price(id) || '…'}</button></div>`;
+  const left = adCoinsLeft();
+  modal(`<h2>Shop</h2><p>You have <b>${fmt(S.coins)}</b> <i class="coin"></i></p>
+    ${HAS_ADS ? `<div class="mission"><div class="ic">🎬</div><div class="tx">Free coins<br><small>Watch a short video · ${left} left today</small></div>
+      <button class="btn sm green" id="mFree" ${left > 0 ? '' : 'disabled'}>+${AD_COINS}</button></div>` : ''}
+    ${HAS_IAP ? Object.keys(PACKS).map((id, i) => row(id, i === 2 ? '💎' : '💰', fmt(PACKS[id]) + ' coins', ['A handful of treats', 'Most popular', 'Best value'][i])).join('') : ''}
+    ${HAS_IAP ? (noAds() ? '<p style="margin-top:12px">✅ Ads removed. Thank you!</p>' : row('remove_ads', '🚫', 'Remove ads', 'No more ads between games. Reward videos stay optional.')) : ''}
+    <button class="btn ghost" data-close>Close</button>`, card => {
+    card.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => { SFX.tap(); NATIVE.buy(b.dataset.buy); });
+    const f = card.querySelector('#mFree');
+    if (f) f.onclick = () => {
+      if (!rewardedReady()) { toast('No video right now. Try again soon!'); return; }
+      showAd('coins', ok => {
+        if (ok && adCoinsLeft() > 0) {
+          if (S.adCoins.day !== today()) S.adCoins = { day: today(), n: 0 };
+          S.adCoins.n++; S.coins += AD_COINS; save(); SFX.coin(); confetti(30); lastHud = ''; updateHud();
+        }
+        if (shopOpen) openShop();
+      });
+    };
+  });
+  shopOpen = true;
+}
+window.__products = list => { products = list; if (shopOpen) openShop(); };
+// Play hands over each paid purchase (again after a crash, until finished). Tokens make it idempotent.
+window.__purchase = (id, token) => {
+  if (!S.tokens.includes(token)) {
+    S.tokens.push(token); if (S.tokens.length > 100) S.tokens.shift();
+    if (id === 'remove_ads') { S.noAds = true; toast('Ads removed. Thank you! 💖'); }
+    else if (PACKS[id]) { S.coins += PACKS[id]; SFX.coin(); confetti(80); toast(`+${fmt(PACKS[id])} coins. Thank you! 💖`); }
+  } else if (id === 'remove_ads') S.noAds = true;
+  save();
+  NATIVE.finishPurchase(token);
+  lastHud = ''; updateHud();
+  if (shopOpen) openShop(); else if (screen === 'home' && $('#modal').classList.contains('hidden')) refreshHome();
+};
+window.__purchaseFailed = code => toast(code === -1 ? 'The store isn\'t available right now' : 'Purchase didn\'t go through. Please try again.');
+
 // test hook
 window.__mochi = { get G() { return G; }, get S() { return S; }, place, canPlace, fitsAnywhere, startGame, gameOver, drawMochi, L };
 
 resize();
 ensureMissions();
+if (HAS_IAP) NATIVE.billingReady();
 show('home');
 setTimeout(dailyCheck, 400);
 requestAnimationFrame(frame);
