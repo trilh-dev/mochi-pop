@@ -116,7 +116,7 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
 <div id="hud" class="hidden">
   <button id="btnPause" class="iconbtn" aria-label="Pause">⏸</button>
   <div class="scorebox"><div id="best">👑 0</div><div id="score">0</div></div>
-  <div class="pill"><i class="coin"></i><b id="coinsHud">0</b></div>
+  <div class="pill" id="pillHud"><i class="coin"></i><b id="coinsHud">0</b></div>
 </div>
 
 <div id="boosters" class="hidden">
@@ -130,7 +130,7 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
 <div id="home" class="screen">
   <div class="topbar">
     <div class="pill lvl">Lv <b id="lvl">1</b><div class="xpbar"><i id="xp"></i></div></div>
-    <div class="pill"><i class="coin"></i><b id="coinsHome">0</b></div>
+    <div class="pill" id="pillHome"><i class="coin"></i><b id="coinsHome">0</b></div>
   </div>
   <h1 class="logo">
     <span><i style="--c:#ff6f9f">M</i><i style="--c:#ffa65c;animation-delay:.1s">o</i><i style="--c:#e0b421;animation-delay:.2s">c</i><i style="--c:#38b57d;animation-delay:.3s">h</i><i style="--c:#3994d6;animation-delay:.4s">i</i></span>
@@ -142,6 +142,7 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
   <div class="row">
     <button id="btnMissions" class="tile">📋<span>Missions</span><em id="missDot" class="dot hidden"></em></button>
     <button id="btnCollection" class="tile">🎁<span>Capsules</span><em id="capDot" class="dot hidden"></em></button>
+    <button id="btnShop" class="tile hidden">🛒<span>Shop</span></button>
     <button id="btnSettings" class="tile">⚙️<span>Settings</span></button>
   </div>
 </div>
