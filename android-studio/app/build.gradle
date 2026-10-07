@@ -1,0 +1,17 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'com.mochipop.game'
+    compileSdk 34
+    defaultConfig {
+        applicationId 'com.mochipop.game'
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+    // The game itself lives in ../../www (built by `node build.mjs` in the game folder).
+    sourceSets { main { assets.srcDirs = ['../../www']; java.srcDirs = ['../../android-lite/src'] } }
+    buildTypes { release { minifyEnabled false } }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_1_8; targetCompatibility JavaVersion.VERSION_1_8 }
+}
