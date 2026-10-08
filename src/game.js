@@ -94,7 +94,7 @@ const DEFAULT = () => ({
   skins: ['mochi'], skin: 'mochi',
   settings: { sound: true, music: true, vib: true },
   daily: { last: '', streak: 0 },
-  missions: null, tutorialDone: false, run: null, games: 0, capsulesOpened: 0,
+  missions: null, tutorialDone: false, howto: false, run: null, games: 0, capsulesOpened: 0,
   noAds: false, tokens: [], adCoins: { day: '', n: 0 }, gamesSinceAd: 0, lastAd: 0,
 });
 let S = DEFAULT();
@@ -137,19 +137,63 @@ const SFX = {
   boom() { tone(160, 0.4, 'sawtooth', 0.2, 40); tone(90, 0.5, 'sine', 0.3, 30); },
   win() { [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.2, 'triangle', 0.2, 0, i * 0.08)); },
 };
+// Looping 8-bar tune (I-vi-IV-V twice, second half is the "chorus"): marimba melody, arpeggio, pad, bass, light beat.
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+const CHORDS = [[60, 64, 67], [57, 60, 64], [53, 57, 60], [55, 59, 62]];
+const BASS = [48, 45, 41, 43];
+const MELODY = [
+  [76, 0, 79, 0, 76, 79, 84, 0], [81, 0, 79, 0, 76, 0, 72, 0], [77, 0, 81, 0, 77, 81, 84, 0], [83, 0, 81, 0, 79, 0, 74, 0],
+  [79, 81, 84, 0, 88, 0, 84, 0], [84, 83, 81, 0, 79, 0, 76, 0], [77, 79, 81, 84, 81, 79, 77, 0], [79, 0, 83, 0, 86, 83, 79, 0],
+];
+let mbus = null, noiseBuf = null;
+function mnote(f, t, d, type, v, att = 0.008) {
+  const o = AC.createOscillator(), g = AC.createGain();
+  o.type = type; o.frequency.value = f;
+  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v, t + att); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+  o.connect(g); g.connect(mbus); o.start(t); o.stop(t + d + 0.05);
+}
+function pluck(m, t, v, len = 0.55) { const f = mtof(m); mnote(f, t, len, 'triangle', v); mnote(f * 2, t, len * 0.45, 'sine', v * 0.4); mnote(f * 4, t, 0.08, 'sine', v * 0.15); }
+function hat(t, v) {
+  const s = AC.createBufferSource(), g = AC.createGain(), h = AC.createBiquadFilter();
+  s.buffer = noiseBuf; h.type = 'highpass'; h.frequency.value = 7500;
+  g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+  s.connect(h); h.connect(g); g.connect(mbus); s.start(t); s.stop(t + 0.06);
+}
+function kick(t, v) {
+  const o = AC.createOscillator(), g = AC.createGain();
+  o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.13);
+  g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+  o.connect(g); g.connect(mbus); o.start(t); o.stop(t + 0.2);
+}
 function startMusic() {
   if (musicTimer || !AC) return;
-  const prog = [[262, 330, 392], [220, 262, 330], [175, 220, 262], [196, 247, 294]];
-  const mel = [0, 2, 4, 7, 9, 7, 4, 2];
-  let step = 0;
+  mbus = AC.createGain(); mbus.gain.value = 1; mbus.connect(master);
+  const dl = AC.createDelay(1), fb = AC.createGain(), wet = AC.createGain();
+  dl.delayTime.value = 0.36; fb.gain.value = 0.3; wet.gain.value = 0.28;
+  mbus.connect(dl); dl.connect(fb); fb.connect(dl); dl.connect(wet); wet.connect(master);
+  noiseBuf = AC.createBuffer(1, AC.sampleRate * 0.1, AC.sampleRate);
+  const nd = noiseBuf.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+  let step = 0, next = AC.currentTime + 0.1;
+  const play = (st, t, sd) => {
+    const bar = Math.floor(st / 8) % 8, k = st % 8, ch = CHORDS[bar % 4], hot = G && G.feverTurns > 0 && screen === 'game';
+    if (k === 0) for (const n of ch) mnote(mtof(n - 12), t, sd * 8, 'sine', 0.022, 0.25);
+    if (k === 0 || k === 4) mnote(mtof(BASS[bar % 4]), t, sd * 3, 'sine', 0.16);
+    if (k === 6) mnote(mtof(BASS[bar % 4] + 12), t, sd * 1.5, 'sine', 0.09);
+    if (k === 3 || k === 7) mnote(mtof(BASS[bar % 4] + 7), t, sd * 1.2, 'sine', 0.07);
+    if (k % 2 === 0) pluck(ch[(k / 2) % 3] + 12, t, 0.03, 0.4);
+    const m = MELODY[bar][k]; if (m) pluck(m, t, 0.1, 0.7);
+    if (k === 0 || k === 4) kick(t, 0.2);
+    if (k % 2 === 1 || hot) hat(t, k % 2 ? 0.05 : 0.03);
+    if (hot && k % 2 === 0) pluck(ch[(k / 2 + 1) % 3] + 24, t + sd / 2, 0.025, 0.2);
+  };
   musicTimer = setInterval(() => {
-    if (!S.settings.music || document.hidden) return;
-    const chord = prog[Math.floor(step / 8) % 4];
-    if (step % 4 === 0) tone(chord[0] / 2, 0.9, 'sine', 0.07);
-    if (step % 2 === 0) tone(chord[(step / 2) % 3] * 2, 0.25, 'triangle', 0.025);
-    if (Math.random() < 0.45) { const n = mel[rand(mel.length)]; tone(chord[0] * 2 * Math.pow(2, n / 12), 0.3, 'sine', 0.03); }
-    step++;
-  }, 260);
+    const now = AC.currentTime;
+    if (!S.settings.music || document.hidden || adShowing) { next = Math.max(next, now + 0.05); return; }
+    while (next < now + 0.25) {
+      const sd = G && G.feverTurns > 0 && screen === 'game' ? 0.2 : 0.26;
+      play(step++, next, sd); next += sd;
+    }
+  }, 60);
 }
 function vib(p) {
   if (!S.settings.vib) return;
@@ -929,18 +973,78 @@ function openSettings() {
     card.querySelectorAll('.sw').forEach(b => b.onclick = () => { S.settings[b.dataset.k] = !S.settings[b.dataset.k]; b.classList.toggle('on'); save(); SFX.tap(); });
   });
 }
+
+// ---------- how to play ----------
+function demoLoop(cv, kind) {
+  const c = cv.getContext('2d'), W = cv.width = cv.height = 300, n = 5, cs = 50, ox = 25, oy = 8, t0 = performance.now();
+  const cell = (x, y, ci, sc = 1, a = 1) => {
+    c.save(); c.globalAlpha = a; c.translate(ox + x * cs + cs / 2, oy + y * cs + cs / 2); c.scale(sc, sc); c.translate(-cs / 2, -cs / 2);
+    drawMochi(c, cs, ci, S.skin, a < 1 ? 2 : 0, false); c.restore();
+  };
+  const ease = k => k * k * (3 - 2 * k);
+  (function f(now) {
+    if (!document.body.contains(cv)) return;
+    const t = ((now - t0) / 1000) % 3.8;
+    c.clearRect(0, 0, W, W);
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { rr(c, ox + x * cs + 2, oy + y * cs + 2, cs - 4, cs - 4, 12); c.fillStyle = (x + y) % 2 ? '#fbe6f0' : '#f8dfeb'; c.fill(); }
+    const piece = kind ? [[4, 4]] : [[2, 3], [3, 3]], ci = 3;
+    const base = kind ? [[0, 4, 3], [1, 4, 3], [2, 4, 3], [3, 4, 3], [0, 1, 0], [1, 1, 4]] : [[0, 4, 0], [1, 4, 1], [4, 4, 2], [3, 4, 4]];
+    const landed = t > 1.5, pop = kind && t > 2.0;
+    const k = ease(clamp((t - 0.5) / 0.9, 0, 1));
+    for (const [x, y, bc] of base) {
+      if (pop && kind && y === 4) { const q = clamp((t - 2.0) / 0.5, 0, 1); cell(x, y, bc, 1 + q * 0.3, 1 - q); } else cell(x, y, bc);
+    }
+    if (landed) for (const [x, y] of piece) { if (pop) { const q = clamp((t - 2.0) / 0.5, 0, 1); cell(x, y, ci, 1 + q * 0.3, 1 - q); } else cell(x, y, ci); }
+    else {
+      const cx = lerp(150, ox + (piece[0][0] + piece.length / 2 - (kind ? 0.5 : 0)) * cs, k), cy = lerp(284, oy + piece[0][1] * cs + cs / 2, k), sc = lerp(0.5, 1, k);
+      piece.forEach(([x, y], i) => { c.save(); c.translate(cx - (piece.length * cs * sc) / 2 + i * cs * sc, cy - cs * sc / 2); c.scale(sc, sc); drawMochi(c, cs, ci, S.skin, 0, false); c.restore(); });
+      c.globalAlpha = t < 0.3 ? t / 0.3 : 1; c.font = '38px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'top'; c.fillText('👆', cx + 10, cy + 6); c.globalAlpha = 1;
+    }
+    if (pop) { c.font = '700 30px Fredoka, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.lineWidth = 7; c.lineJoin = 'round'; c.strokeStyle = '#ff6f9f'; c.strokeText('Pop!', 150, 130 - (t - 2) * 20); c.fillStyle = '#fff'; c.fillText('Pop!', 150, 130 - (t - 2) * 20); }
+    requestAnimationFrame(f);
+  })(performance.now());
+}
+const HOWTO = [
+  { h: 'Drag & drop', p: 'Drag a mochi block from the bottom and drop it onto the board.', demo: 0 },
+  { h: 'Fill a line to pop it', p: 'Complete a full row or column and it pops! Same colour all the way = Sweet Line bonus 🍬', demo: 1 },
+  { h: 'Combos & Fever', html: `<div class="mission"><div class="ic">🔥</div><div class="tx">Pop lines back-to-back for bigger Combos</div></div>
+    <div class="mission"><div class="ic">🌈</div><div class="tx">Fill the Fever bar for double points &amp; coins</div></div>
+    <div class="mission"><div class="ic">🔨</div><div class="tx">Stuck? Boosters (🔨 💣 🔄) clear space or swap pieces</div></div>
+    <div class="mission"><div class="ic">💥</div><div class="tx">The game ends when no piece fits. Blocks can't be rotated</div></div>` },
+];
+function openHowTo(fromPlay) {
+  SFX.tap();
+  const page = i => {
+    const d = HOWTO[i], last = i === HOWTO.length - 1;
+    modal(`<h2>${d.h}</h2>${d.p ? `<p>${d.p}</p>` : ''}${d.demo !== undefined ? '<canvas class="demo"></canvas>' : d.html}
+      <div class="dots">${HOWTO.map((_, j) => `<i class="${j === i ? 'on' : ''}"></i>`).join('')}</div>
+      <button class="btn" id="mNext">${last ? (fromPlay ? "Let's play!" : 'Got it!') : 'Next'}</button>`, card => {
+      const cvd = card.querySelector('.demo'); if (cvd) demoLoop(cvd, d.demo);
+      card.querySelector('#mNext').onclick = () => {
+        SFX.tap();
+        if (!last) return page(i + 1);
+        S.howto = true; save(); closeModal(); if (fromPlay) startGame();
+      };
+    });
+  };
+  page(0);
+}
 function openPause() {
   SFX.tap(); setTool(null);
   modal(`<h2>Paused</h2><p>Your board is saved. Come back anytime!</p>
     <button class="btn green" data-close>Resume</button>
     <button class="btn blue" id="mSet">Settings</button>
+    <button class="btn blue" id="mHow">How to play</button>
     <button class="btn ghost" id="mHome">Home</button>`, card => {
+    card.querySelector('#mHow').onclick = () => openHowTo(false);
     card.querySelector('#mHome').onclick = () => { saveRun(); closeModal(); show('home'); };
     card.querySelector('#mSet').onclick = openSettings;
   });
 }
 
-$('#btnPlay').addEventListener('click', startGame);
+$('#btnPlay').addEventListener('click', () => { initAudio(); if (!S.howto && !S.run) openHowTo(true); else startGame(); });
+$('#btnHelp').addEventListener('click', () => { initAudio(); openHowTo(false); });
+$('#btnHome').addEventListener('click', () => { SFX.tap(); setTool(null); drag = null; saveRun(); show('home'); });
 $('#btnMissions').addEventListener('click', () => { initAudio(); openMissions(); });
 $('#btnCollection').addEventListener('click', () => { initAudio(); openCollection(); });
 $('#btnSettings').addEventListener('click', () => { initAudio(); openSettings(); });

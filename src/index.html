@@ -27,8 +27,11 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
 #hud{position:fixed;left:0;right:0;top:0;padding:calc(env(safe-area-inset-top) + 10px) 14px 0;display:flex;align-items:flex-start;justify-content:space-between;pointer-events:none}
 #hud>*{pointer-events:auto}
 .iconbtn{width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,.85);font-size:20px;box-shadow:0 3px 0 rgba(210,150,190,.35);display:grid;place-items:center}
+.hudl{display:flex;gap:8px}
 .iconbtn:active,.tile:active,.big:active,.btn:active,.boost:active{transform:translateY(2px) scale(.97)}
-.scorebox{text-align:center;line-height:1}
+.scorebox{text-align:center;line-height:1;position:absolute;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top) + 10px);pointer-events:none}
+.demo{width:100%;max-width:300px;aspect-ratio:1;display:block;margin:6px auto;background:#fff;border-radius:20px}
+.dots{display:flex;justify-content:center;gap:6px;margin:8px 0 0}.dots i{width:9px;height:9px;border-radius:50%;background:#ead3df}.dots i.on{background:var(--pink)}
 #score{font-size:44px;font-weight:700;color:#fff;text-shadow:0 3px 0 #e86fa0,0 0 1px #e86fa0,2px 2px 0 #e86fa0,-2px 2px 0 #e86fa0,0 6px 12px rgba(232,111,160,.35);transition:transform .1s}
 #score.bump{transform:scale(1.15)}
 #best{font-size:15px;color:var(--ink2);margin-bottom:4px}
@@ -114,7 +117,7 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
 <canvas id="cv"></canvas>
 
 <div id="hud" class="hidden">
-  <button id="btnPause" class="iconbtn" aria-label="Pause">⏸</button>
+  <div class="hudl"><button id="btnHome" class="iconbtn" aria-label="Home">🏠</button><button id="btnPause" class="iconbtn" aria-label="Pause">⏸</button></div>
   <div class="scorebox"><div id="best">👑 0</div><div id="score">0</div></div>
   <div class="pill" id="pillHud"><i class="coin"></i><b id="coinsHud">0</b></div>
 </div>
@@ -130,6 +133,7 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
 <div id="home" class="screen">
   <div class="topbar">
     <div class="pill lvl">Lv <b id="lvl">1</b><div class="xpbar"><i id="xp"></i></div></div>
+    <button id="btnHelp" class="iconbtn" aria-label="How to play">❓</button>
     <div class="pill" id="pillHome"><i class="coin"></i><b id="coinsHome">0</b></div>
   </div>
   <h1 class="logo">
