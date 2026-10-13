@@ -3,7 +3,8 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 const dir = new URL('.', import.meta.url).pathname;
 const font = readFileSync(dir + 'src/fredoka.woff2').toString('base64');
 const version = parseInt(readFileSync(dir + 'VERSION', 'utf8'), 10);
-const js = readFileSync(dir + 'src/game.js', 'utf8').replace('__VERSION__', String(version));
+const js = readFileSync(dir + 'src/game.js', 'utf8').replace('__VERSION__', String(version))
+  .replace('/*__JOURNEY__*/', () => readFileSync(dir + 'src/journey.js', 'utf8'));
 const html = readFileSync(dir + 'src/index.html', 'utf8').replace('__FONT__', font).replace('__GAME__', () => js);
 mkdirSync(dir + 'www', { recursive: true });
 writeFileSync(dir + 'www/index.html', html);

@@ -67,6 +67,30 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
 .tile{flex:1;position:relative;height:84px;border-radius:22px;background:rgba(255,255,255,.88);box-shadow:0 5px 0 rgba(210,150,190,.4);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:30px}
 .tile span{font-size:14px;color:var(--ink)}
 .dot{position:absolute;top:8px;right:10px;width:14px;height:14px;border-radius:50%;background:#ff5d7a;box-shadow:0 0 0 3px #fff;animation:breathe 1s infinite}
+/* journey */
+#btnJourney{margin-top:auto}
+.mid{margin:-4px 0 16px;width:min(70vw,280px);height:58px;border-radius:22px;font-size:22px;font-weight:700;color:#2f7a58;
+  background:linear-gradient(180deg,#d6fbe9,#9eecc7);box-shadow:0 5px 0 #5fc596,0 10px 20px rgba(60,170,120,.25)}
+.mid small{display:block;font-size:13px;opacity:.85;margin-top:-2px}
+#goals{position:fixed;left:0;right:0;top:calc(env(safe-area-inset-top) + 92px);display:flex;justify-content:center;gap:8px;pointer-events:none}
+.goal{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.9);border-radius:999px;padding:4px 12px 4px 6px;font-size:18px;box-shadow:0 3px 0 rgba(210,150,190,.35)}
+.goal b{font-size:17px;color:var(--ink)}
+.goal.done{background:#d9f7e8}.goal.done b{color:#33a874}
+.gdot{display:inline-block;width:26px;height:26px}
+.gjelly{display:inline-block;width:22px;height:22px;border-radius:8px;background:repeating-linear-gradient(135deg,rgba(255,150,200,.45) 0 5px,rgba(255,255,255,.7) 5px 8px);border:2.5px solid rgba(232,80,150,.7)}
+.goalrow{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin:8px 0}
+#score.low{color:#fff;text-shadow:0 3px 0 #e04b4b,0 0 1px #e04b4b,2px 2px 0 #e04b4b,-2px 2px 0 #e04b4b;animation:breathe .6s infinite}
+.lvstars{font-size:58px;letter-spacing:6px;margin:4px 0}
+.lvstars span{color:#ead3df;display:inline-block}
+.lvstars span.on{color:#ffc23d;text-shadow:0 3px 0 #d39b17;animation:popin .45s cubic-bezier(.2,1.6,.4,1) both}
+.journey{text-align:left;margin-top:8px}
+.world{background:linear-gradient(180deg,var(--wl),#fff);border-radius:20px;padding:10px 10px 12px;margin-top:10px;box-shadow:inset 0 0 0 2px var(--wl)}
+.world h3{margin:2px 4px 8px;font-size:17px;color:var(--ink)}
+.lvgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.lvnode{aspect-ratio:1;border-radius:16px;background:#fff;color:var(--ink);font-size:20px;font-weight:700;box-shadow:0 4px 0 var(--wc);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
+.lvnode small{font-size:11px;color:#f5a623;height:12px;margin-top:3px;letter-spacing:-1px}
+.lvnode.locked{background:rgba(255,255,255,.55);box-shadow:none;font-size:16px}
+.lvnode.next{background:var(--wc);color:#fff;animation:breathe 1.2s infinite}
 /* modal */
 #modal{position:fixed;inset:0;background:rgba(90,59,93,.38);display:grid;place-items:center;padding:16px;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
 .card{width:min(100%,400px);max-height:88vh;overflow:auto;background:var(--card);border-radius:28px;padding:22px 18px 18px;text-align:center;
@@ -127,6 +151,7 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
   <button class="boost" data-tool="bomb" aria-label="Bomb">💣<b>0</b></button>
   <button class="boost" data-tool="swap" aria-label="New pieces">🔄<b>0</b></button>
 </div>
+<div id="goals" class="hidden"></div>
 <div id="toolHint" class="hidden"></div>
 <div id="stuck" class="hidden"><span>No room! Try a booster?</span><button id="btnGiveUp" class="btn sm ghost">Give up</button></div>
 
@@ -141,8 +166,9 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
     <span><i style="--c:#7f5fd6;animation-delay:.5s">P</i><i style="--c:#ff6f9f;animation-delay:.6s">o</i><i style="--c:#ffa65c;animation-delay:.7s">p</i><i style="--c:#38b57d;animation-delay:.8s">!</i></span>
   </h1>
   <div class="tag">Drop. Pop. Combo. Collect!</div>
-  <div class="bestline">👑 Best <b id="bestHome">0</b></div>
-  <button id="btnPlay" class="big">PLAY</button>
+  <div class="bestline hidden">👑 Best <b id="bestHome">0</b></div>
+  <button id="btnJourney" class="big">JOURNEY</button>
+  <button id="btnPlay" class="mid">♾️ Classic</button>
   <div class="row">
     <button id="btnMissions" class="tile">📋<span>Missions</span><em id="missDot" class="dot hidden"></em></button>
     <button id="btnCollection" class="tile">🎁<span>Capsules</span><em id="capDot" class="dot hidden"></em></button>

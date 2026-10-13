@@ -35,8 +35,14 @@
 - All sound is generated in code (Web Audio), with a soft background loop. Sound, music and vibration each have their own toggle.
 - The board is saved after every move, so closing the app never loses a run.
 
+## Journey mode (1.1)
+- 40 hand-made levels in four worlds (Strawberry Fields, Lemon Lagoon, Soda Sky, Taro Castle), defined as 8×8 board strings in `src/journey.js`.
+- Each level has a move limit and one to four goals: clear lines, pop mochis of a colour, clear all jelly (jelly tiles vanish when a line is popped over them), break sugar cubes (blockers that take one or two line pops), pop star mochis, or reach a score.
+- Each level limits the colours in play and ramps piece size with its index, so colour goals stay reachable and later worlds feel tighter.
+- 1–3 stars by moves to spare (≥30% / ≥12%); first clear pays 30 coins plus 15 per new star. Out of moves: one +5 moves for 100 coins, or retry.
+- Levels were tuned with a goal-aware greedy bot (win rate without boosters: world 1 ≈ 70–100%, later worlds 15–60%); people with boosters do better.
+
 ## Ideas for later
 - Ad-rewarded continue and double coins; a no-ads in-app purchase
 - Weekly event board (collect N star mochis for an exclusive skin)
 - Leaderboards (Google Play Games), cloud save
-- An adventure mode with hand-made levels and goals ("pop 20 pink mochis")

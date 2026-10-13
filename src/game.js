@@ -296,7 +296,7 @@ function resize() {
   DPR = Math.min(window.devicePixelRatio || 1, 3);
   VW = window.innerWidth; VH = window.innerHeight;
   cv.width = Math.round(VW * DPR); cv.height = Math.round(VH * DPR);
-  const top = 118, bottom = 92;
+  const top = G && G.lv ? 150 : 118, bottom = 92;
   const avail = VH - top - bottom;
   L.bs = Math.floor(Math.min(VW - 34, 520, avail * 0.66));
   L.cell = L.bs / N;
@@ -323,8 +323,9 @@ function newRun() {
   };
 }
 function makePiece(shape) {
-  const ci = rand(COLORS.length);
-  return { shape, ci, star: Math.random() < 0.13 ? rand(shape.cells.length) : -1, anim: 0 };
+  const lv = G && G.lv;
+  const ci = lv ? lv.cols[rand(lv.cols.length)] : rand(COLORS.length);
+  return { shape, ci, star: Math.random() < (lv ? lv.starChance : 0.13) ? rand(shape.cells.length) : -1, anim: 0 };
 }
 function pickShape(score) {
   const hard = clamp(score / 9000, 0, 1);
@@ -359,7 +360,7 @@ function helperShape(grid) {
 }
 function genTray() {
   for (let a = 0; a < 40; a++) {
-    const t = [0, 1, 2].map(() => makePiece(pickShape(G.score)));
+    const t = [0, 1, 2].map(() => makePiece(pickShape(G.lv ? G.lv.hard : G.score)));
     if (Math.random() < 0.38) { const h = helperShape(G.grid); if (h) t[rand(3)] = makePiece(h); }
     if (t.some(p => fitsAnywhere(G.grid, p.shape))) { G.pieces = t; return; }
   }
@@ -407,11 +408,14 @@ function place(pi, gx, gy) {
     G.stats.maxCombo = Math.max(G.stats.maxCombo, G.combo); missionMax('combo', G.combo);
     const set = new Map();
     let sweet = 0;
-    for (const r of rows) { const c0 = G.grid[r][0].ci; if (G.grid[r].every(c => c.ci === c0)) sweet++; for (let x = 0; x < N; x++) set.set(x + ',' + r, [x, r]); }
-    for (const c of cols) { const c0 = G.grid[0][c].ci; if (G.grid.every(row => row[c].ci === c0)) sweet++; for (let y = 0; y < N; y++) set.set(c + ',' + y, [c, y]); }
+    for (const r of rows) { const c0 = G.grid[r][0].ci; if (c0 >= 0 && G.grid[r].every(c => c.ci === c0)) sweet++; for (let x = 0; x < N; x++) set.set(x + ',' + r, [x, r]); }
+    for (const c of cols) { const c0 = G.grid[0][c].ci; if (c0 >= 0 && G.grid.every(row => row[c].ci === c0)) sweet++; for (let y = 0; y < N; y++) set.set(c + ',' + y, [c, y]); }
     let stars = 0;
     for (const [x, y] of set.values()) {
       const cell = G.grid[y][x];
+      if (G.lv && G.jelly[y][x]) { G.jelly[y][x] = false; G.lv.prog.jelly++; jellyPop(x, y); }
+      if (cell.stone) { crackStone(x, y); continue; }
+      if (G.lv) G.lv.prog['c' + cell.ci] = (G.lv.prog['c' + cell.ci] || 0) + 1;
       const d = Math.hypot(L.bx + (x + .5) * L.cell - cx, L.by + (y + .5) * L.cell - cy) / L.cell;
       clearing.push({ x, y, ci: cell.ci, star: cell.star, t: -d * 0.035, done: false });
       if (cell.star) stars++;
@@ -426,6 +430,7 @@ function place(pi, gx, gy) {
     const coins = (lines + stars * 5 + sweet * 3 + (perfect ? 25 : 0)) * (G.feverTurns > 0 ? 2 : 1);
     G.coinsRun += coins;
     G.stats.lines += lines; mission('lines', lines);
+    if (G.lv) { G.lv.prog.lines += lines; G.lv.prog.stars += stars; }
     G.stats.sweet += sweet; mission('sweet', sweet);
     G.stats.stars += stars; mission('stars', stars);
     // feedback
@@ -455,6 +460,7 @@ function place(pi, gx, gy) {
   if (G.feverTurns > 0 && !justFever) G.feverTurns--;
   if (G.pieces.every(x => !x)) { genTray(); G.pieces.forEach(pp => pp.anim = -0.15); }
   bumpScore();
+  if (G.lv) { G.lv.movesLeft--; lastHud = ''; if (levelCheck()) return; }
   saveRun();
   checkStuck();
 }
@@ -472,11 +478,13 @@ function smash(cells, big) {
     if (x < 0 || y < 0 || x >= N || y >= N) continue;
     const c = G.grid[y][x]; if (!c) continue;
     any = true;
+    if (c.stone) { crackStone(x, y); continue; }
+    if (G.lv) G.lv.prog['c' + c.ci] = (G.lv.prog['c' + c.ci] || 0) + 1;
     clearing.push({ x, y, ci: c.ci, star: c.star, t: -Math.hypot(x - cells[0][0], y - cells[0][1]) * 0.04, done: false });
     if (c.star) { G.coinsRun += 5; }
     G.grid[y][x] = null; G.score += 10;
   }
-  if (any) { shake = big ? 16 : 8; big ? SFX.boom() : SFX.place(); vib(big ? [30, 30, 60] : 25); bumpScore(); saveRun(); }
+  if (any) { shake = big ? 16 : 8; big ? SFX.boom() : SFX.place(); vib(big ? [30, 30, 60] : 25); bumpScore(); saveRun(); if (G.lv) { lastHud = ''; levelCheck(); } }
   return any;
 }
 
@@ -511,6 +519,8 @@ function missionMax(id, v) {
     if (!was && m.prog >= m.target) toast('Mission complete! 🎉');
   }
 }
+
+/*__JOURNEY__*/
 
 // ---------- input ----------
 let drag = null; // {pi, x, y, ox, oy, gx, gy, valid, scale}
@@ -602,8 +612,17 @@ function updateHud() {
   if (!G) return;
   const k = [Math.floor(G.shown), S.best, S.coins + G.coinsRun, S.power.hammer, S.power.bomb, S.power.swap].join('|');
   if (k === lastHud) return; lastHud = k;
-  $('#score').textContent = fmt(G.shown);
-  $('#best').textContent = '👑 ' + fmt(Math.max(S.best, G.score));
+  $('#goals').classList.toggle('hidden', !G.lv);
+  if (G.lv) {
+    $('#score').textContent = G.lv.movesLeft;
+    $('#score').classList.toggle('low', G.lv.movesLeft <= 3);
+    $('#best').textContent = `Level ${G.lv.n} · moves`;
+    $('#goals').innerHTML = G.lv.goals.map(g => { const left = goalLeft(g); return `<span class="goal ${left ? '' : 'done'}">${goalIcon(g)}<b>${left ? fmt(left) : '✓'}</b></span>`; }).join('');
+  } else {
+    $('#score').classList.remove('low');
+    $('#score').textContent = fmt(G.shown);
+    $('#best').textContent = '👑 ' + fmt(Math.max(S.best, G.score));
+  }
   $('#coinsHud').textContent = fmt(S.coins + G.coinsRun);
   $$('.boost').forEach(b => {
     const t = b.dataset.tool, n = S.power[t], badge = b.querySelector('b');
@@ -671,6 +690,7 @@ function drawBoard(dt) {
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
     rr(ctx, L.bx + x * L.cell + 2, L.by + y * L.cell + 2, L.cell - 4, L.cell - 4, L.cell * 0.28);
     ctx.fillStyle = hl.has(x + ',' + y) ? '#fff3b0' : ((x + y) % 2 ? '#fbe6f0' : '#f8dfeb'); ctx.fill();
+    if (G.jelly && G.jelly[y][x]) drawJelly(ctx, L.bx + x * L.cell, L.by + y * L.cell, L.cell);
   }
   // ghost
   const dp = drag && G.pieces[drag.pi];
@@ -682,6 +702,7 @@ function drawBoard(dt) {
   // cells
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
     const c = G.grid[y][x]; if (!c) continue;
+    if (c.stone) { drawStone(ctx, L.bx + x * L.cell, L.by + y * L.cell, L.cell, c.stone); continue; }
     const h = (x * 7 + y * 13) % 10;
     const lit = hl.has(x + ',' + y);
     const face = lit || fever ? 2 : (((T + h * 0.73) % 4.2) < 0.13 ? 1 : 0);
@@ -692,6 +713,7 @@ function drawBoard(dt) {
     const cx = L.bx + (x + 0.5) * L.cell, cy = L.by + (y + 1) * L.cell;
     const w = L.cell * sc * (2 - breathe), hgt = L.cell * sc * (breathe + bounce);
     ctx.drawImage(sprite(c.ci, S.skin, face, c.star), cx - w / 2, cy - hgt, w, hgt);
+    if (G.jelly && G.jelly[y][x]) jellyRim(ctx, L.bx + x * L.cell, L.by + y * L.cell, L.cell);
   }
   // clearing
   for (let i = clearing.length - 1; i >= 0; i--) {
@@ -816,7 +838,9 @@ function refreshHome() {
   $('#bestHome').textContent = fmt(S.best);
   $('#lvl').textContent = S.level;
   $('#xp').style.width = Math.round(100 * S.xp / xpNeed()) + '%';
-  $('#btnPlay').innerHTML = S.run ? 'CONTINUE<small>score ' + fmt(S.run.score) + '</small>' : 'PLAY';
+  $('#btnPlay').innerHTML = S.run ? '♾️ Classic<small>continue · score ' + fmt(S.run.score) + '</small>' : '♾️ Classic<small>endless · best ' + fmt(S.best) + '</small>';
+  const jn = journeyNext(), jdone = (S.journey || []).length >= LEVELS.length;
+  $('#btnJourney').innerHTML = 'JOURNEY<small>' + (jdone ? 'all ' + LEVELS.length + ' levels cleared ✨' : 'Level ' + (jn + 1) + ' · ' + WORLDS[Math.floor(jn / 10)].name) + '</small>';
   ensureMissions();
   $('#missDot').classList.toggle('hidden', !S.missions.list.some(m => m.prog >= m.target && !m.claimed));
   $('#capDot').classList.toggle('hidden', S.coins < CAPSULE_COST || S.skins.length >= SKINS.length);
@@ -826,19 +850,21 @@ const xpNeed = () => 100 + (S.level - 1) * 60;
 
 function startGame() {
   initAudio(); SFX.tap();
+  G = null; resize();
   if (S.run) { G = Object.assign(newRun(), S.run); G.shown = G.score; G.pieces = G.pieces.map(p => p && Object.assign(p, { shape: SHAPES[p.si] || SHAPES[0], anim: 0 })); }
   else { G = newRun(); genTray(); G.pieces.forEach(p => p.anim = -0.2); }
   lastHud = ''; clearing.length = 0;
   show('game'); updateHud(); checkStuck();
 }
 function saveRun() {
-  if (!G || G.over) return;
+  if (!G || G.over || G.lv) return;
   S.run = { grid: G.grid.map(r => r.map(c => c && { ci: c.ci, star: c.star, pt: -9 })), pieces: G.pieces.map(p => p && { si: SHAPES.indexOf(p.shape), ci: p.ci, star: p.star }),
     score: G.score, combo: G.combo, comboLife: G.comboLife, fever: G.fever, feverTurns: G.feverTurns, coinsRun: G.coinsRun, continued: G.continued, stats: G.stats };
   save();
 }
 function gameOver() {
   if (!G || G.over) return;
+  if (G.lv) return levelEnd(false);
   G.over = true; drag = null; setTool(null);
   SFX.over(); vib([60, 40, 60]);
   $('#stuck').classList.add('hidden');
@@ -1043,6 +1069,7 @@ function openPause() {
 }
 
 $('#btnPlay').addEventListener('click', () => { initAudio(); if (!S.howto && !S.run) openHowTo(true); else startGame(); });
+$('#btnJourney').addEventListener('click', () => { initAudio(); openJourney(); });
 $('#btnHelp').addEventListener('click', () => { initAudio(); openHowTo(false); });
 $('#btnHome').addEventListener('click', () => { SFX.tap(); setTool(null); drag = null; saveRun(); show('home'); });
 $('#btnMissions').addEventListener('click', () => { initAudio(); openMissions(); });
@@ -1140,7 +1167,7 @@ window.__purchase = (id, token) => {
 window.__purchaseFailed = code => toast(code === -1 ? 'The store isn\'t available right now' : 'Purchase didn\'t go through. Please try again.');
 
 // test hook
-window.__mochi = { get G() { return G; }, get S() { return S; }, place, canPlace, fitsAnywhere, startGame, gameOver, drawMochi, L };
+window.__mochi = { get G() { return G; }, get S() { return S; }, place, canPlace, fitsAnywhere, startGame, gameOver, drawMochi, L, LEVELS, startLevel, goalLeft, linesFor, closeModal };
 
 resize();
 ensureMissions();
