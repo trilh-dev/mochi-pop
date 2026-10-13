@@ -296,7 +296,9 @@ function resize() {
   DPR = Math.min(window.devicePixelRatio || 1, 3);
   VW = window.innerWidth; VH = window.innerHeight;
   cv.width = Math.round(VW * DPR); cv.height = Math.round(VH * DPR);
-  const top = G && G.lv ? 150 : 118, bottom = 92;
+  // Journey adds a row of goal chips under the HUD; it sits below the safe area like the HUD does.
+  const safeTop = Math.max(0, (parseFloat(getComputedStyle($('#hud')).paddingTop) || 10) - 10);
+  const top = G && G.lv ? Math.max(162, safeTop + 172) : 118, bottom = 92;
   const avail = VH - top - bottom;
   L.bs = Math.floor(Math.min(VW - 34, 520, avail * 0.66));
   L.cell = L.bs / N;
@@ -307,6 +309,8 @@ function resize() {
   L.trayY = L.by + L.bs + Math.max(10, slack * 0.3);
   L.trayScale = clamp(Math.min((L.trayH - 8) / (3.4 * L.cell), (VW / 3 - 12) / (3.4 * L.cell)), 0.32, 0.66);
   L.slots = [0, 1, 2].map(i => ({ x: VW * (i * 2 + 1) / 6, y: L.trayY + L.trayH / 2 }));
+  // Journey goal chips sit just above the Fever bar.
+  $('#goals').style.top = Math.round(L.by - L.cell * 0.18 - 74) + 'px';
   spriteCache.clear();
 }
 window.addEventListener('resize', resize);
