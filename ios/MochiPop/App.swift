@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 import WebKit
 import AVFoundation
+import StoreKit
 
 @main
 struct MochiPopApp: App {
@@ -14,6 +15,13 @@ struct MochiPopApp: App {
 /// bridge, so on iOS there is no shop or ads. Vibration is bridged through `window.Android.vibrate`.
 final class Bridge: NSObject, WKScriptMessageHandler {
     func userContentController(_ c: WKUserContentController, didReceive m: WKScriptMessage) {
+        if m.name == "review" {
+            // The game asks once, after a good level clear; iOS decides whether to show it.
+            if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
+                SKStoreReviewController.requestReview(in: scene)
+            }
+            return
+        }
         guard m.name == "haptic" else { return }
         let ms = (m.body as? Double) ?? 20
         let g = UIImpactFeedbackGenerator(style: ms > 40 ? .heavy : ms > 15 ? .medium : .light)
@@ -32,6 +40,7 @@ struct GameView: UIViewRepresentable {
         let bridge = Bridge()
         context.coordinator.bridge = bridge
         cfg.userContentController.add(bridge, name: "haptic")
+        cfg.userContentController.add(bridge, name: "review")
         cfg.userContentController.addUserScript(WKUserScript(source: "window.Android={vibrate:function(m){window.webkit.messageHandlers.haptic.postMessage(+m||20)}};", injectionTime: .atDocumentStart, forMainFrameOnly: true))
         let web = WKWebView(frame: .zero, configuration: cfg)
         let bg = UIColor(red: 1, green: 0.878, blue: 0.937, alpha: 1)

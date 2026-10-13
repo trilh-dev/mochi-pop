@@ -150,6 +150,14 @@ function crackStone(x, y) {
 }
 function jellyPop(x, y) { burst(L.bx + (x + 0.5) * L.cell, L.by + (y + 0.5) * L.cell, 0, 5); }
 
+/** Opens the store's own rating sheet when the app wrapper supports it. Returns whether it could. */
+function askReview() {
+  if (typeof NATIVE.requestReview === 'function') { setTimeout(() => NATIVE.requestReview(), 1800); return true; }
+  const ios = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.review;
+  if (ios) { setTimeout(() => ios.postMessage(1), 1800); return true; }
+  return false;
+}
+
 function startLevel(i) {
   initAudio(); SFX.tap(); closeModal();
   const { grid, jelly, lv } = parseLevel(i);
@@ -174,6 +182,8 @@ function levelEnd(won) {
     S.journey = S.journey || []; S.journey[lv.idx] = Math.max(prev, stars);
     S.coins += G.coinsRun + reward; S.xp += 40; save();
     SFX.win(); confetti(120); vib([30, 40, 60]);
+    // Ask for a rating once, at a high point: a good clear of level 8 or 20.
+    if ((lv.n === 8 || lv.n === 20) && stars >= 2 && !S.reviewAsked && askReview()) { S.reviewAsked = true; save(); }
     const last = lv.idx === LEVELS.length - 1;
     modal(`<h2>Level ${lv.n} complete!</h2>
       <div class="lvstars">${[1, 2, 3].map(k => `<span class="${k <= stars ? 'on' : ''}" style="animation-delay:${k * 0.25}s">★</span>`).join('')}</div>

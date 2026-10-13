@@ -14,6 +14,10 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import com.google.android.play.core.review.ReviewInfo;
+import com.google.android.play.core.review.ReviewManager;
+import com.google.android.play.core.review.ReviewManagerFactory;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -35,7 +39,7 @@ import java.net.URL;
 public class MainActivity extends Activity {
     static final String OTA_BASE = "https://raw.githubusercontent.com/trilh-dev/mochi-pop/main/www/";
     /** Bump when the native bridge gains features that newer game builds depend on. */
-    static final int WRAPPER_LEVEL = 2;
+    static final int WRAPPER_LEVEL = 3;
     // Same base URL whichever copy is loaded, so saved progress (localStorage) is shared.
     static final String BASE_URL = "file:///android_asset/";
 
@@ -225,6 +229,20 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public int gameVersion() { return loadedVersion; }
+
+        // ---- rating prompt (WRAPPER_LEVEL 3) ----
+        /** Shows Google Play's in-app review sheet; Play decides whether it actually appears. */
+        @JavascriptInterface
+        public void requestReview() {
+            runOnUiThread(() -> {
+                ReviewManager manager = ReviewManagerFactory.create(MainActivity.this);
+                manager.requestReviewFlow().addOnCompleteListener(task -> {
+                    if (!task.isSuccessful()) return;
+                    ReviewInfo info = task.getResult();
+                    manager.launchReviewFlow(MainActivity.this, info);
+                });
+            });
+        }
 
         // ---- ads (WRAPPER_LEVEL 2) ----
         @JavascriptInterface
