@@ -40,7 +40,7 @@
 - Each level has a move limit and one to four goals: clear lines, pop mochis of a colour, clear all jelly (jelly tiles vanish when a line is popped over them), break sugar cubes (blockers that take one or two line pops), pop star mochis, or reach a score.
 - Each level limits the colours in play and ramps piece size with its index, so colour goals stay reachable and later worlds feel tighter.
 - 1–3 stars by moves to spare (≥30% / ≥12%); first clear pays 30 coins plus 15 per new star. Out of moves: one +5 moves for 100 coins, or retry.
-- Levels were tuned with a goal-aware greedy bot (win rate without boosters: world 1 ≈ 70–100%, later worlds 15–60%); people with boosters do better.
+- Levels were tuned with a goal-aware greedy bot that uses no boosters (win rate per level, 20–30 runs: world 1 55–100%, world 2 20–75%, world 3 25–90%, world 4 20–90%, final level 33%). Players with boosters and the +5 moves continue do better.
 
 ## Ideas for later
 - Ad-rewarded continue and double coins; a no-ads in-app purchase
