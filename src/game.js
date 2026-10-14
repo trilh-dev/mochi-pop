@@ -208,7 +208,8 @@ const SCENES = {
 };
 const MUSIC_VOL = 0.8, bgm = new Audio();
 bgm.preload = 'auto';
-let synthMusic = false, musicOn = false, musicSrc = 0, musicIntro = ['logo', 'title'];
+// Scene mp3s pulled pending a copyright-clean replacement set; falls back to the original procedural chiptune loop.
+let synthMusic = true, musicOn = false, musicSrc = 0, musicIntro = ['logo', 'title'];
 let musicCue = null, musicModal = null, curScene = null, curIdx = 0, seekTo = 0, fadeStep = 0, playReq = false;
 const scenePos = {};
 // Which music fits right now: a result cue, then gameplay (fever, Journey level, Classic), then the open menu.
