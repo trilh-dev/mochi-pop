@@ -222,7 +222,7 @@ const CAPSULE_COST = 150;
 const BOOST_COST = { hammer: 40, bomb: 80, swap: 30 };
 const CONTINUE_COST = 100;
 const DAILY = [30, 40, 50, 60, 80, 100, 200];
-const GAME_VERSION = 6;
+const GAME_VERSION = 7;
 const NATIVE = window.Android || {};
 const HAS_ADS = typeof NATIVE.showRewarded === 'function';
 const HAS_IAP = typeof NATIVE.buy === 'function';
@@ -287,11 +287,13 @@ function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } cat
 // ---------- audio ----------
 let AC = null, master = null, musicTimer = null;
 function initAudio() {
+  // Called from taps: starting the soundtrack inside a user gesture unlocks playback on older WebViews.
+  musicOn = true; musicTick();
   if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
   try {
     AC = new (window.AudioContext || window.webkitAudioContext)();
     master = AC.createGain(); master.gain.value = 0.5; master.connect(AC.destination);
-    startMusic();
+    if (synthMusic) startMusic();
   } catch (e) { AC = null; }
 }
 function tone(freq, dur = 0.12, type = 'sine', vol = 0.25, slide = 0, delay = 0) {
@@ -378,6 +380,73 @@ function startMusic() {
     }
   }, 60);
 }
+
+// ---------- soundtrack ----------
+// MP3s live in www/music. App builds bundle them; older Android apps that received this page over the air
+// stream them from the CDN instead. If none can be loaded, the synth tune above plays as a fallback.
+const MUSIC_SRC = ['music/', 'https://cdn.jsdelivr.net/gh/trilh-dev/mochi-pop@main/www/music/', 'https://raw.githubusercontent.com/trilh-dev/mochi-pop/main/www/music/'];
+const SCENES = {
+  home: ['home1', 'home2', 'home3'], shop: ['shop'], journey: ['journey'], fever: ['fever'], win: ['win'], lose: ['lose'],
+  classic: ['classic1', 'classic2', 'classic3', 'classic4', 'classic5', 'classic6', 'classic7', 'classic8', 'classic9', 'classic10'],
+};
+const MUSIC_VOL = 0.8, bgm = new Audio();
+bgm.preload = 'auto';
+let synthMusic = false, musicOn = false, musicSrc = 0, musicIntro = ['logo', 'title'];
+let musicCue = null, musicModal = null, curScene = null, curIdx = 0, seekTo = 0, fadeStep = 0, playReq = false;
+const scenePos = {};
+// Which music fits right now: a result cue, then gameplay (fever, Journey level, Classic), then the open menu.
+function musicScene() {
+  if (musicIntro.length) { if (screen === 'home' && !musicCue) return 'intro'; musicIntro = []; }
+  if (musicCue) return musicCue;
+  if (screen === 'game' && G) return G.feverTurns > 0 ? 'fever' : G.lv ? 'lv' + G.lv.idx : 'classic';
+  return musicModal || 'home';
+}
+// Journey: two tracks per world, alternating level by level.
+function sceneList(sc) {
+  if (sc === 'intro') return [musicIntro[0]];
+  if (sc.startsWith('lv')) { const i = +sc.slice(2); return ['world' + (Math.floor(i / 10) + 1) + (i % 2 ? 'b' : 'a')]; }
+  return SCENES[sc];
+}
+const keepsPlace = sc => !/^(intro|win|lose|fever)$/.test(sc);
+function tryPlay() {
+  if (playReq) return;
+  playReq = true;
+  try { const p = bgm.play(); if (p && p.then) p.then(() => { playReq = false; }, () => { playReq = false; }); else playReq = false; }
+  catch (e) { playReq = false; }
+}
+function loadTrack(name, t) {
+  seekTo = t; bgm.src = MUSIC_SRC[musicSrc] + name + '.mp3'; bgm.volume = 0; tryPlay();
+}
+function enterScene(sc) {
+  if (curScene && keepsPlace(curScene)) scenePos[curScene] = { i: curIdx, t: bgm.currentTime || 0 };
+  curScene = sc;
+  const list = sceneList(sc), p = keepsPlace(sc) && scenePos[sc];
+  curIdx = p ? p.i : sc === 'classic' ? Math.floor(Math.random() * list.length) : 0;
+  bgm.loop = list.length === 1 && sc !== 'intro';
+  loadTrack(list[curIdx], p ? p.t : 0);
+}
+function musicTick() {
+  if (synthMusic) return;
+  if (!musicOn || !S.settings.music || document.hidden || adShowing) { if (!bgm.paused) bgm.pause(); return; }
+  const sc = musicScene();
+  if (sc !== curScene) {
+    // Short fade-out before switching (iOS ignores volume, so there it just cuts).
+    if (curScene && !bgm.paused && fadeStep < 3) { fadeStep++; bgm.volume = MUSIC_VOL * (1 - fadeStep / 3); return; }
+    fadeStep = 0; enterScene(sc);
+  } else if (bgm.volume < MUSIC_VOL) bgm.volume = Math.min(MUSIC_VOL, bgm.volume + MUSIC_VOL / 5);
+  if (bgm.paused) tryPlay();
+}
+bgm.addEventListener('loadedmetadata', () => { if (seekTo) { try { bgm.currentTime = seekTo; } catch (e) {} seekTo = 0; } });
+bgm.addEventListener('ended', () => {
+  if (curScene === 'intro') { musicIntro.shift(); curScene = null; musicTick(); return; }
+  const list = sceneList(curScene); curIdx = (curIdx + 1) % list.length; loadTrack(list[curIdx], 0);
+});
+bgm.addEventListener('error', () => {
+  if (!curScene) return;
+  if (++musicSrc < MUSIC_SRC.length) loadTrack(sceneList(curScene)[curIdx], seekTo);
+  else { synthMusic = true; bgm.removeAttribute('src'); startMusic(); }
+});
+setInterval(musicTick, 100);
 function vib(p) {
   if (!S.settings.vib) return;
   try {
@@ -903,6 +972,7 @@ function levelEnd(won) {
       const n = card.querySelector('#mNext'); if (n) n.onclick = () => openLevelIntro(lv.idx + 1);
       card.querySelector('#mMap').onclick = () => { show('home'); openJourney(); };
     });
+    musicCue = 'win';
   } else {
     SFX.over(); vib([60, 40, 60]);
     const left = lv.goals.filter(g => goalLeft(g));
@@ -924,6 +994,7 @@ function levelEnd(won) {
       card.querySelector('#mRetry').onclick = () => { S.coins += G.coinsRun; save(); openLevelIntro(lv.idx); };
       card.querySelector('#mMap').onclick = () => { S.coins += G.coinsRun; save(); show('home'); openJourney(); };
     });
+    musicCue = 'lose';
   }
 }
 function openLevelIntro(i) {
@@ -936,6 +1007,7 @@ function openLevelIntro(i) {
     card.querySelector('#mGo').onclick = () => startLevel(i);
     card.querySelector('#mMap').onclick = () => { if (screen === 'game') show('home'); openJourney(); };
   });
+  musicModal = 'journey';
 }
 function openJourney() {
   SFX.tap();
@@ -949,6 +1021,7 @@ function openJourney() {
     card.querySelectorAll('[data-l]').forEach(b => b.onclick = () => openLevelIntro(+b.dataset.l));
     const cur = card.querySelector('.lvnode.next'); if (cur) cur.scrollIntoView({ block: 'center' });
   });
+  musicModal = 'journey';
 }
 
 
@@ -1249,7 +1322,7 @@ function frame(now) {
 
 // ---------- screens & modals ----------
 function show(id) {
-  screen = id;
+  screen = id; musicCue = null;
   $('#home').classList.toggle('hidden', id !== 'home');
   $('#hud').classList.toggle('hidden', id !== 'game');
   $('#boosters').classList.toggle('hidden', id !== 'game');
@@ -1257,12 +1330,12 @@ function show(id) {
   if (id === 'home') refreshHome();
 }
 function modal(html, mount) {
-  shopOpen = false;
+  shopOpen = false; musicModal = null; musicCue = null;
   $('#card').innerHTML = html; $('#modal').classList.remove('hidden');
   $$('#card [data-close]').forEach(b => b.addEventListener('click', () => { SFX.tap(); closeModal(); }));
   if (mount) mount($('#card'));
 }
-function closeModal() { shopOpen = false; $('#modal').classList.add('hidden'); if (screen === 'home') refreshHome(); }
+function closeModal() { shopOpen = false; musicModal = null; musicCue = null; $('#modal').classList.add('hidden'); if (screen === 'home') refreshHome(); }
 function refreshHome() {
   $('#coinsHome').textContent = fmt(S.coins);
   $('#bestHome').textContent = fmt(S.best);
@@ -1327,6 +1400,7 @@ function gameOver() {
         G.doubled = true; d.remove(); card.querySelector('#mEarned').textContent = fmt(earned * 2); SFX.coin(); confetti(40);
       });
     });
+    musicCue = newBest ? 'win' : 'lose';
     if (newBest) { confetti(100); SFX.win(); }
   }, 650);
 }
@@ -1414,6 +1488,7 @@ function openCollection() {
       }, 1050);
     };
   });
+  musicModal = 'shop';
 }
 function openSettings() {
   SFX.tap();
@@ -1509,7 +1584,7 @@ $('#btnShop').addEventListener('click', () => { initAudio(); openShop(); });
 $('#pillHome').addEventListener('click', () => { if (HAS_ADS || HAS_IAP) { initAudio(); openShop(); } });
 $('#pillHud').addEventListener('click', () => { if ((HAS_ADS || HAS_IAP) && G && !G.over) { initAudio(); setTool(null); openShop(); } });
 $('#btnPause').addEventListener('click', openPause);
-document.addEventListener('visibilitychange', () => { if (document.hidden) { saveRun(); if (AC) AC.suspend(); } else if (AC) AC.resume(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { saveRun(); if (AC) AC.suspend(); } else if (AC) AC.resume(); musicTick(); });
 document.addEventListener('contextmenu', e => e.preventDefault());
 
 // Android back button (called by the native wrapper)
@@ -1580,6 +1655,7 @@ function openShop() {
     };
   });
   shopOpen = true;
+  musicModal = 'shop';
 }
 window.__products = list => { products = list; if (shopOpen) openShop(); };
 // Play hands over each paid purchase (again after a crash, until finished). Tokens make it idempotent.

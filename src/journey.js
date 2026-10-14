@@ -194,6 +194,7 @@ function levelEnd(won) {
       const n = card.querySelector('#mNext'); if (n) n.onclick = () => openLevelIntro(lv.idx + 1);
       card.querySelector('#mMap').onclick = () => { show('home'); openJourney(); };
     });
+    musicCue = 'win';
   } else {
     SFX.over(); vib([60, 40, 60]);
     const left = lv.goals.filter(g => goalLeft(g));
@@ -215,6 +216,7 @@ function levelEnd(won) {
       card.querySelector('#mRetry').onclick = () => { S.coins += G.coinsRun; save(); openLevelIntro(lv.idx); };
       card.querySelector('#mMap').onclick = () => { S.coins += G.coinsRun; save(); show('home'); openJourney(); };
     });
+    musicCue = 'lose';
   }
 }
 function openLevelIntro(i) {
@@ -227,6 +229,7 @@ function openLevelIntro(i) {
     card.querySelector('#mGo').onclick = () => startLevel(i);
     card.querySelector('#mMap').onclick = () => { if (screen === 'game') show('home'); openJourney(); };
   });
+  musicModal = 'journey';
 }
 function openJourney() {
   SFX.tap();
@@ -240,4 +243,5 @@ function openJourney() {
     card.querySelectorAll('[data-l]').forEach(b => b.onclick = () => openLevelIntro(+b.dataset.l));
     const cur = card.querySelector('.lvnode.next'); if (cur) cur.scrollIntoView({ block: 'center' });
   });
+  musicModal = 'journey';
 }
