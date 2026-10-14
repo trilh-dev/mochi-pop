@@ -63,6 +63,7 @@ public class MainActivity extends Activity {
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
+        s.setMediaPlaybackRequiresUserGesture(false);
         s.setDatabaseEnabled(true);
         s.setAllowFileAccess(true);
         s.setSupportZoom(false);
