@@ -225,6 +225,12 @@ function sceneList(sc) {
   return SCENES[sc];
 }
 const keepsPlace = sc => !/^(intro|win|lose|fever)$/.test(sc);
+// Shuffle through a scene's tracks one at a time, each playing to the end, never repeating the last one.
+function shuffleIdx(list, prev) {
+  if (list.length <= 1) return 0;
+  let i; do { i = rand(list.length); } while (i === prev);
+  return i;
+}
 function tryPlay() {
   if (playReq) return;
   playReq = true;
@@ -238,7 +244,7 @@ function enterScene(sc) {
   if (curScene && keepsPlace(curScene)) scenePos[curScene] = { i: curIdx, t: bgm.currentTime || 0 };
   curScene = sc;
   const list = sceneList(sc), p = keepsPlace(sc) && scenePos[sc];
-  curIdx = p ? p.i : sc === 'classic' ? Math.floor(Math.random() * list.length) : 0;
+  curIdx = p ? p.i : shuffleIdx(list, -1);
   bgm.loop = list.length === 1 && sc !== 'intro';
   loadTrack(list[curIdx], p ? p.t : 0);
 }
@@ -256,7 +262,7 @@ function musicTick() {
 bgm.addEventListener('loadedmetadata', () => { if (seekTo) { try { bgm.currentTime = seekTo; } catch (e) {} seekTo = 0; } });
 bgm.addEventListener('ended', () => {
   if (curScene === 'intro') { musicIntro.shift(); curScene = null; musicTick(); return; }
-  const list = sceneList(curScene); curIdx = (curIdx + 1) % list.length; loadTrack(list[curIdx], 0);
+  const list = sceneList(curScene); curIdx = shuffleIdx(list, curIdx); loadTrack(list[curIdx], 0);
 });
 bgm.addEventListener('error', () => {
   if (!curScene) return;
