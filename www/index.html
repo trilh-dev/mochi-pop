@@ -222,7 +222,7 @@ const CAPSULE_COST = 150;
 const BOOST_COST = { hammer: 40, bomb: 80, swap: 30 };
 const CONTINUE_COST = 100;
 const DAILY = [30, 40, 50, 60, 80, 100, 200];
-const GAME_VERSION = 9;
+const GAME_VERSION = 10;
 const NATIVE = window.Android || {};
 const HAS_ADS = typeof NATIVE.showRewarded === 'function';
 const HAS_IAP = typeof NATIVE.buy === 'function';
@@ -391,8 +391,9 @@ const SCENES = {
 };
 const MUSIC_VOL = 0.8, bgm = new Audio();
 bgm.preload = 'auto';
-// Scene mp3s pulled pending a copyright-clean replacement set; falls back to the original procedural chiptune loop.
-let synthMusic = true, musicOn = false, musicSrc = 0, musicIntro = ['logo', 'title'];
+// All tracks are CC0 (see CREDITS.md). Some Journey worlds reuse Classic tracks instead of shipping duplicate files.
+const TRACK_ALIAS = { world3b: 'classic3', world4a: 'classic1', world4b: 'classic2' };
+let synthMusic = false, musicOn = false, musicSrc = 0, musicIntro = ['title'];
 let musicCue = null, musicModal = null, curScene = null, curIdx = 0, seekTo = 0, fadeStep = 0, playReq = false;
 const scenePos = {};
 // Which music fits right now: a result cue, then gameplay (fever, Journey level, Classic), then the open menu.
@@ -422,7 +423,7 @@ function tryPlay() {
   catch (e) { playReq = false; }
 }
 function loadTrack(name, t) {
-  seekTo = t; bgm.src = MUSIC_SRC[musicSrc] + name + '.mp3'; bgm.volume = 0; tryPlay();
+  seekTo = t; bgm.src = MUSIC_SRC[musicSrc] + (TRACK_ALIAS[name] || name) + '.mp3'; bgm.volume = 0; tryPlay();
 }
 function enterScene(sc) {
   if (curScene && keepsPlace(curScene)) scenePos[curScene] = { i: curIdx, t: bgm.currentTime || 0 };
