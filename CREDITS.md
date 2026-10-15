@@ -33,3 +33,9 @@ trimmed to its first 16 s.
 | world3a | Space Upbeat | SubspaceAudio | https://opengameart.org/content/12-music-loops |
 
 Sound effects and the fallback chiptune loop are generated in code (`src/game.js`) and are original.
+
+## Font
+
+**Fredoka** — Copyright 2016 The Fredoka Project Authors (https://github.com/hafontia/Fredoka-One).
+Licensed under the SIL Open Font License, Version 1.1 (https://openfontlicense.org). The font is
+embedded in `www/index.html`; the notice is also shown in-game under Settings → Credits.

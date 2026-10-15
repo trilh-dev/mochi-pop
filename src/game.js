@@ -1030,12 +1030,22 @@ function skinThumb(id, canvas, ci) {
   const s = canvas.width = canvas.height = 96;
   drawMochi(canvas.getContext('2d'), s, ci, id, 0, false);
 }
+// Store policies (and some countries' laws) require showing the odds of randomized items before purchase.
+function capsuleOdds() {
+  const tot = SKINS.reduce((a, k) => a + RARITY_W[k.rarity], 0);
+  const tiers = Object.keys(RARITY_W).map(r => {
+    const n = SKINS.filter(k => k.rarity === r).length;
+    return `${r} ${(100 * n * RARITY_W[r] / tot).toFixed(1)}%`;
+  });
+  return `Odds per capsule: ${tiers.join(' · ')}. Every friend within a tier is equally likely. A duplicate gives 60 coins back.`;
+}
 function openCollection() {
   SFX.tap();
   const all = S.skins.length >= SKINS.length;
   modal(`<h2>Capsule Machine</h2><p>Collect cute mochi friends! Tap one you own to use it.</p>
     <svg class="capsule" id="cap" viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="#ffd6e8" stroke="#d9578a" stroke-width="4"/><path d="M6 50a44 44 0 0 0 88 0z" fill="#a585f5" stroke="#7a58d6" stroke-width="4"/><circle cx="50" cy="50" r="10" fill="#fff" stroke="#7a58d6" stroke-width="4"/><ellipse cx="32" cy="28" rx="10" ry="6" fill="#fff" opacity=".7" transform="rotate(-30 32 28)"/></svg>
     <button class="btn gold" id="mRoll" ${S.coins >= CAPSULE_COST ? '' : 'disabled'}>${all ? 'Roll for coins' : 'Open capsule'} · ${CAPSULE_COST} <i class="coin"></i></button>
+    <p class="odds">${capsuleOdds()}</p>
     <div class="grid">${SKINS.map((k, i) => `<div class="skin ${S.skins.includes(k.id) ? '' : 'locked'} ${S.skin === k.id ? 'sel' : ''}" data-id="${k.id}"><canvas></canvas>${S.skins.includes(k.id) ? k.name : '???'}<em>${k.rarity}</em></div>`).join('')}</div>
     <p style="margin-top:10px">You have <b>${fmt(S.coins)}</b> coins</p>
     ${S.coins < CAPSULE_COST && (HAS_ADS || HAS_IAP) ? '<button class="btn blue" id="mGetCoins">🛒 Get coins</button>' : ''}
@@ -1068,6 +1078,14 @@ function openCollection() {
   });
   musicModal = 'shop';
 }
+function openCredits() {
+  SFX.tap();
+  modal(`<h2>Credits</h2><div class="credits">
+    <p><b>Music</b> (CC0, public domain, via OpenGameArt.org):<br>MintoDog · SubspaceAudio · Zane Little Music · hernandack · cynicmusic · Cleyton Kauffman · Aureolus_Omicron</p>
+    <p><b>Font</b>: Fredoka. Copyright 2016 The Fredoka Project Authors (github.com/hafontia/Fredoka-One). Licensed under the SIL Open Font License 1.1 (openfontlicense.org).</p>
+    <p>Game, art and sound effects by Van Lang Technologies.</p></div>
+    <button class="btn ghost" id="mBack">Back</button>`, card => { card.querySelector('#mBack').onclick = openSettings; });
+}
 function openSettings() {
   SFX.tap();
   const row = (k, label) => `<div class="setrow">${label}<button class="sw ${S.settings[k] ? 'on' : ''}" data-k="${k}"></button></div>`;
@@ -1076,7 +1094,9 @@ function openSettings() {
     <p style="font-size:13px">Version ${GAME_VERSION}</p>
     ${HAS_IAP ? '<button class="btn blue" id="mRestore">Restore purchases</button>' : ''}
     ${HAS_ADS && NATIVE.privacyOptionsRequired() ? '<button class="btn blue" id="mPrivacy">Privacy options</button>' : ''}
+    <button class="btn ghost" id="mCredits">Credits</button>
     <button class="btn ghost" data-close>Close</button>`, card => {
+    card.querySelector('#mCredits').onclick = openCredits;
     const r = card.querySelector('#mRestore'); if (r) r.onclick = () => { NATIVE.restorePurchases(); toast('Checking your purchases…'); };
     const pv = card.querySelector('#mPrivacy'); if (pv) pv.onclick = () => NATIVE.showPrivacyOptions();
     card.querySelectorAll('.sw').forEach(b => b.onclick = () => { S.settings[b.dataset.k] = !S.settings[b.dataset.k]; b.classList.toggle('on'); save(); SFX.tap(); });
